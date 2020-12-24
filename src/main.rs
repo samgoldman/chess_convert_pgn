@@ -154,7 +154,7 @@ impl<'a> Converter<'a> {
 
         let tokens = line.split(" ");
 
-        let mut moves: Vec<u32> = vec![];
+        let mut moves: Vec<u16> = vec![];
         let mut move_metadata: Vec<u16> = vec![];
         let mut clk_hours: Vec<u8> = vec![];
         let mut clk_minutes: Vec<u8> = vec![];
