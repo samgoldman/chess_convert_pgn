@@ -7,6 +7,8 @@ use std::fs::File;
 
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use regex::Regex;
+use bzip2::Compression;
+use bzip2::write::{BzEncoder};
 
 #[allow(non_snake_case)]
 #[path = "../target/flatbuffers/chess_generated.rs"]
@@ -142,8 +144,10 @@ impl<'a> Converter<'a> {
 
     fn parse_game_text(&mut self, line: &str) {
         lazy_static! {
-            static ref _RE_EVAL_INDICATOR: Regex = Regex::new(r#"eval"#).unwrap();
-            static ref _RE_CLK_INDICATOR: Regex = Regex::new(r#"clk"#).unwrap();
+            static ref RE_EVAL: Regex = Regex::new(r#"(-?\d+\.\d{1,2}|#-?\d+)"#).unwrap();
+            static ref RE_EVAL_ADVANTAGE: Regex = Regex::new(r#"(-?\d+\.\d{1,2})"#).unwrap();
+            static ref RE_EVAL_MATE: Regex = Regex::new(r#"#(-?\d+)"#).unwrap();
+            static ref RE_CLK: Regex = Regex::new(r#"(\d+):(\d{2}):(\d{2})"#).unwrap();
             static ref RE_MOVE: Regex = Regex::new(r#"^([NBRQK]?)([a-h1-9]{0,4})(x?)([a-h1-9]{2})(=?)([NBRQK]?)([+#]?)([?!]{0,2})$"#).unwrap();
             static ref RE_COORD: Regex = Regex::new(r#"^([a-h]?)([1-8]?)$"#).unwrap();
         }
@@ -152,130 +156,176 @@ impl<'a> Converter<'a> {
 
         let mut moves: Vec<u32> = vec![];
         let mut move_metadata: Vec<u16> = vec![];
+        let mut clk_hours: Vec<u8> = vec![];
+        let mut clk_minutes: Vec<u8> = vec![];
+        let mut clk_seconds: Vec<u8> = vec![];  
+        let mut eval_mate_in: Vec<i8> = vec![];
+        let mut eval_advantage: Vec<f32> = vec![];
+
+        let mut in_comment = false;
 
         for token in tokens {
-            for cap in RE_MOVE.captures_iter(token) {
-                let piece_str = &cap[1];
-                let disambiguation_str = &cap[2];
-                let capture_str = &cap[3];
-                let dest_str = &cap[4];     
-                assert!(disambiguation_str.len() <= dest_str.len());
-                let promotion_str = &cap[5];
-                let promotion_piece = &cap[6];
-                assert!(promotion_piece.len() == promotion_str.len());
-                let check_str = &cap[7];
-                let nag_str = &cap[8];
+            if "{" == token {
+                in_comment = true;
+            }
 
-                let mut move_data = 0;
-                let mut this_move_metadata = 0;
+            if "}" == token {
+                in_comment = false;
+            }
 
-                for coord_cap in RE_COORD.captures_iter(disambiguation_str) {
-                    move_data |= (match &coord_cap[1] {      
-                        "" =>  0x0,
-                        "a" => 0x1, 
-                        "b" => 0x2, 
-                        "c" => 0x3, 
-                        "d" => 0x4, 
-                        "e" => 0x5, 
-                        "f" => 0x6, 
-                        "g" => 0x7, 
-                        "h" => 0x8,  
-                        u => panic!("Unrecongnized file: {}", u), 
-                    } << 0);
+            if false == in_comment {
+                for cap in RE_MOVE.captures_iter(token) {
+                    let piece_str = &cap[1];
+                    let disambiguation_str = &cap[2];
+                    let capture_str = &cap[3];
+                    let dest_str = &cap[4];     
+                    assert!(disambiguation_str.len() <= dest_str.len());
+                    let promotion_str = &cap[5];
+                    let promotion_piece = &cap[6];
+                    assert!(promotion_piece.len() == promotion_str.len());
+                    let check_str = &cap[7];
+                    let nag_str = &cap[8];
 
-                    move_data |= (match &coord_cap[2] {
-                        "" =>  0x0,
-                        "1" => 0x1, 
-                        "2" => 0x2, 
-                        "3" => 0x3, 
-                        "4" => 0x4, 
-                        "5" => 0x5, 
-                        "6" => 0x6, 
-                        "7" => 0x7, 
-                        "8" => 0x8, 
-                        u => panic!("Unrecongnized rank: {}", u), 
-                    } << 4);
+                    let mut move_data = 0;
+                    let mut this_move_metadata = 0;
+
+                    for coord_cap in RE_COORD.captures_iter(disambiguation_str) {
+                        move_data |= (match &coord_cap[1] {      
+                            "" =>  0x0,
+                            "a" => 0x1, 
+                            "b" => 0x2, 
+                            "c" => 0x3, 
+                            "d" => 0x4, 
+                            "e" => 0x5, 
+                            "f" => 0x6, 
+                            "g" => 0x7, 
+                            "h" => 0x8,  
+                            u => panic!("Unrecongnized file: {}", u), 
+                        } << 0);
+
+                        move_data |= (match &coord_cap[2] {
+                            "" =>  0x0,
+                            "1" => 0x1, 
+                            "2" => 0x2, 
+                            "3" => 0x3, 
+                            "4" => 0x4, 
+                            "5" => 0x5, 
+                            "6" => 0x6, 
+                            "7" => 0x7, 
+                            "8" => 0x8, 
+                            u => panic!("Unrecongnized rank: {}", u), 
+                        } << 4);
+                    }
+
+                    for coord_cap in RE_COORD.captures_iter(dest_str) {
+                        move_data |= (match &coord_cap[1] {      
+                            "" =>  0x0,
+                            "a" => 0x1, 
+                            "b" => 0x2, 
+                            "c" => 0x3, 
+                            "d" => 0x4, 
+                            "e" => 0x5, 
+                            "f" => 0x6, 
+                            "g" => 0x7, 
+                            "h" => 0x8,  
+                            u => panic!("Unrecongnized file: {}", u), 
+                        } << 8);
+
+                        move_data |= (match &coord_cap[2] {
+                            "" =>  0x0,
+                            "1" => 0x1, 
+                            "2" => 0x2, 
+                            "3" => 0x3, 
+                            "4" => 0x4, 
+                            "5" => 0x5, 
+                            "6" => 0x6, 
+                            "7" => 0x7, 
+                            "8" => 0x8, 
+                            u => panic!("Unrecongnized rank: {}", u), 
+                        } << 12);
+                    }
+
+                    this_move_metadata |= match piece_str {
+                        "" =>       0x0001,
+                        "N" =>      0x0002,
+                        "B" =>      0x0003,
+                        "R" =>      0x0004,
+                        "Q" =>      0x0005,
+                        "K" =>      0x0006,
+                        u => panic!("Unrecongized piece: {}", u)
+                    };
+
+                    this_move_metadata |= match capture_str {
+                        "" =>       0x0000,
+                        "x" =>      0x0008,
+                        u => panic!("Unreconized capture flag: {}", u)
+                    };
+
+                    this_move_metadata |= match check_str {
+                        "" =>       0x0000,
+                        "+" =>      0x0010,
+                        "#" =>      0x0020,
+                        u => panic!("Unrecongized check flag: {}", u)
+                    };
+
+                    this_move_metadata |= match nag_str {
+                        "" =>       0x0000,
+                        "!" =>      0x0040,
+                        "?" =>      0x0080,
+                        "!!" =>     0x00C0,
+                        "??" =>     0x0100,
+                        "!?" =>     0x0140,
+                        "?!" =>     0x0180,
+                        _ => 7
+                    };
+
+                    this_move_metadata |= match promotion_piece {
+                        "" =>       0x0000,
+                     // "P" =>      0x0200
+                        "N" =>      0x0400,
+                        "B" =>      0x0600,
+                        "R" =>      0x0800,
+                        "Q" =>      0x0A00,
+                        "K" =>      0x0C00,
+                        u => panic!("Unrecongized promotion piece: {}", u)
+                    };
+
+                    moves.push(move_data);
+                    move_metadata.push(this_move_metadata);
+                }
+            } else {                
+                for cap in RE_EVAL.captures_iter(token) {
+                    self.game_args.eval_available = true;
+
+                    let eval = &cap[1];
+                    
+                    for cap in RE_EVAL_MATE.captures_iter(eval) {
+                        eval_advantage.push(0.0);
+                        eval_mate_in.push(cap[1].parse::<i8>().unwrap());
+                        break;
+                    }
+
+                    for cap in RE_EVAL_ADVANTAGE.captures_iter(eval) {
+                        eval_mate_in.push(0);
+                        eval_advantage.push(cap[1].parse::<f32>().unwrap());
+                        break;
+                    }
+
                 }
 
-                for coord_cap in RE_COORD.captures_iter(dest_str) {
-                    move_data |= (match &coord_cap[1] {      
-                        "" =>  0x0,
-                        "a" => 0x1, 
-                        "b" => 0x2, 
-                        "c" => 0x3, 
-                        "d" => 0x4, 
-                        "e" => 0x5, 
-                        "f" => 0x6, 
-                        "g" => 0x7, 
-                        "h" => 0x8,  
-                        u => panic!("Unrecongnized file: {}", u), 
-                    } << 8);
-
-                    move_data |= (match &coord_cap[2] {
-                        "" =>  0x0,
-                        "1" => 0x1, 
-                        "2" => 0x2, 
-                        "3" => 0x3, 
-                        "4" => 0x4, 
-                        "5" => 0x5, 
-                        "6" => 0x6, 
-                        "7" => 0x7, 
-                        "8" => 0x8, 
-                        u => panic!("Unrecongnized rank: {}", u), 
-                    } << 12);
+                for cap in RE_CLK.captures_iter(token) {
+                    clk_hours.push(cap[1].parse::<u8>().unwrap());
+                    clk_minutes.push(cap[2].parse::<u8>().unwrap());
+                    clk_seconds.push(cap[3].parse::<u8>().unwrap());
                 }
-
-                this_move_metadata |= match piece_str {
-                    "" =>       0b0000000000000001,
-                    "N" =>      0b0000000000000010,
-                    "B" =>      0b0000000000000011,
-                    "R" =>      0b0000000000000100,
-                    "Q" =>      0b0000000000000101,
-                    "K" =>      0b0000000000000110,
-                    u => panic!("Unrecongized piece: {}", u)
-                };
-
-                this_move_metadata |= match capture_str {
-                    "" =>       0b0000000000000000,
-                    "x" =>      0b0000000000001000,
-                    u => panic!("Unreconized capture flag: {}", u)
-                };
-
-                this_move_metadata |= match check_str {
-                    "" =>       0b0000000000000000,
-                    "+" =>      0b0000000000010000,
-                    "#" =>      0b0000000000100000,
-                    u => panic!("Unrecongized check flag: {}", u)
-                };
-
-                this_move_metadata |= match nag_str {
-                    "" =>       0b0000000000000000,
-                    "!" =>      0b0000000001000000,
-                    "?" =>      0b0000000010000000,
-                    "!!" =>     0b0000000011000000,
-                    "??" =>     0b0000000100000000,
-                    "!?" =>     0b0000000101000000,
-                    "?!" =>     0b0000000110000000,
-                    _ => 7
-                };
-
-                this_move_metadata |= match promotion_piece {
-                    "" =>       0b0000000000000000,
-                    "N" =>      0b0000010000000000,
-                    "B" =>      0b0000011000000000,
-                    "R" =>      0b0000100000000000,
-                    "Q" =>      0b0000101000000000,
-                    "K" =>      0b0000110000000000,
-                    u => panic!("Unrecongized promotion piece: {}", u)
-                };
-
-                moves.push(move_data);
-                move_metadata.push(this_move_metadata);
             }
         }
 
         self.game_args.moves = Some(self.builder.create_vector(&moves));
         self.game_args.move_metadata = Some(self.builder.create_vector(&move_metadata));
+        self.game_args.clock_hours = Some(self.builder.create_vector(&clk_hours));
+        self.game_args.clock_minutes = Some(self.builder.create_vector(&clk_minutes));
+        self.game_args.clock_seconds = Some(self.builder.create_vector(&clk_seconds));
     }
 
     fn convert_next_game(&mut self) -> std::io::Result<bool> {
@@ -366,14 +416,17 @@ fn main() -> io::Result<()> {
                 let data = converter.save_to_list();
     
                 let mut pos = 0;
-                let mut buffer = File::create(format!("{}_{:06}.bin", output_prefix, k))?;
+                let buffer = File::create(format!("{}_{:06}.bin.bz2", output_prefix, k))?;
             
+                let mut compressor = BzEncoder::new(buffer, Compression::best());
+
                 while pos < data.len() {
-                    let bytes_written = buffer.write(&data[pos..])?;
+                    let bytes_written = compressor.write(&data[pos..])?;
                     pos += bytes_written;
                 }
-
+                
                 converter.builder = flatbuffers::FlatBufferBuilder::new_with_capacity(1024*1024);
+
 
                 i = 0;
                 k += 1;
@@ -385,10 +438,12 @@ fn main() -> io::Result<()> {
         let data = converter.save_to_list();
         
         let mut pos = 0;
-        let mut buffer = File::create(format!("{}_{:06}.bin", output_prefix, k))?;
+        let buffer = File::create(format!("{}_{:06}.bin.bz2", output_prefix, k))?;
+    
+        let mut compressor = BzEncoder::new(buffer, Compression::best());
 
         while pos < data.len() {
-            let bytes_written = buffer.write(&data[pos..])?;
+            let bytes_written = compressor.write(&data[pos..])?;
             pos += bytes_written;
         }
     }
