@@ -137,6 +137,15 @@ impl<'a> Converter<'a> {
                         u => panic!("Unknown termination: {}", u)
                     }
                 }
+                "Site" => {
+                    self.game_args.site = Some(self.builder.create_string(value));
+                },
+                "White" => {
+                    self.game_args.white = Some(self.builder.create_string(value));
+                },
+                "Black" => {
+                    self.game_args.black = Some(self.builder.create_string(value));
+                },
                 _ => {}
             }
         }
@@ -159,7 +168,7 @@ impl<'a> Converter<'a> {
         let mut clk_hours: Vec<u8> = vec![];
         let mut clk_minutes: Vec<u8> = vec![];
         let mut clk_seconds: Vec<u8> = vec![];  
-        let mut eval_mate_in: Vec<i8> = vec![];
+        let mut eval_mate_in: Vec<i16> = vec![];
         let mut eval_advantage: Vec<f32> = vec![];
 
         let mut in_comment = false;
@@ -301,7 +310,7 @@ impl<'a> Converter<'a> {
                     
                     for cap in RE_EVAL_MATE.captures_iter(eval) {
                         eval_advantage.push(0.0);
-                        eval_mate_in.push(cap[1].parse::<i8>().unwrap());
+                        eval_mate_in.push(cap[1].parse::<i16>().unwrap());
                         break;
                     }
 
