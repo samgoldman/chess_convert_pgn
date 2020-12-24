@@ -11,6 +11,7 @@ flatbuffers = "0.8"
 lazy_static = "1.4.0"
 regex = "1.4.2"
 clap = "2.33.3"
+snap = "1"
 
 [build-dependencies]
 flatc-rust = "0.1.3"

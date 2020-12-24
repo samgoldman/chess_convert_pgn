@@ -65,9 +65,6 @@ impl<'a> Converter<'a> {
             let value = &cap[2];
 
             match field {
-                "Opening" => {
-                    self.game_args.opening = Some(self.builder.create_string(value));
-                },
                 "UTCDate" => {
                     let date_parts: Vec<&str> = value.split('.').collect();
 
@@ -153,17 +150,8 @@ impl<'a> Converter<'a> {
 
         let tokens = line.split(" ");
 
-        let mut pieces_moved: Vec<Piece> = vec![];
-        let mut captured: Vec<bool> = vec![];
-        let mut promotions: Vec<Piece> = vec![];
-        let mut nags: Vec<NAG> = vec![];
-        let mut checks: Vec<Check> = vec![];
-
-        // let mut from_files: Vec<BoardFile> = vec![];
-        let mut to_files: Vec<BoardFile> = vec![];
-
-        // let mut from_ranks: Vec<u8> = vec![];
-        let mut to_ranks: Vec<u8> = vec![];
+        let mut moves: Vec<u32> = vec![];
+        let mut move_metadata: Vec<u16> = vec![];
 
         for token in tokens {
             for cap in RE_MOVE.captures_iter(token) {
@@ -178,119 +166,116 @@ impl<'a> Converter<'a> {
                 let check_str = &cap[7];
                 let nag_str = &cap[8];
 
-                // for coord_cap in RE_COORD.captures_iter(disambiguation_str) {
-                //     from_files.push(match &coord_cap[1] {
-                //         "" => BoardFile::N_A,
-                //         "a" => BoardFile::A, 
-                //         "b" => BoardFile::B, 
-                //         "c" => BoardFile::C, 
-                //         "d" => BoardFile::D, 
-                //         "e" => BoardFile::E, 
-                //         "f" => BoardFile::F, 
-                //         "g" => BoardFile::G, 
-                //         "h" => BoardFile::H, 
-                //         u => panic!("Unrecongnized file: {}", u), 
-                //     });
+                let mut move_data = 0;
+                let mut this_move_metadata = 0;
 
-                //     from_ranks.push(match &coord_cap[2] {
-                //         "" => 0,
-                //         "1" => 1, 
-                //         "2" => 2, 
-                //         "3" => 3, 
-                //         "4" => 4, 
-                //         "5" => 5, 
-                //         "6" => 6, 
-                //         "7" => 7, 
-                //         "8" => 8, 
-                //         u => panic!("Unrecongnized rank: {}", u), 
-                //     });
-                // }
-
-                for coord_cap in RE_COORD.captures_iter(dest_str) {
-                    to_files.push(match &coord_cap[1] {
-                        "" => BoardFile::N_A,
-                        "a" => BoardFile::A, 
-                        "b" => BoardFile::B, 
-                        "c" => BoardFile::C, 
-                        "d" => BoardFile::D, 
-                        "e" => BoardFile::E, 
-                        "f" => BoardFile::F, 
-                        "g" => BoardFile::G, 
-                        "h" => BoardFile::H, 
+                for coord_cap in RE_COORD.captures_iter(disambiguation_str) {
+                    move_data |= (match &coord_cap[1] {      
+                        "" =>  0x0,
+                        "a" => 0x1, 
+                        "b" => 0x2, 
+                        "c" => 0x3, 
+                        "d" => 0x4, 
+                        "e" => 0x5, 
+                        "f" => 0x6, 
+                        "g" => 0x7, 
+                        "h" => 0x8,  
                         u => panic!("Unrecongnized file: {}", u), 
-                    });
+                    } << 0);
 
-                    to_ranks.push(match &coord_cap[2] {
-                        "" => 0,
-                        "1" => 1, 
-                        "2" => 2, 
-                        "3" => 3, 
-                        "4" => 4, 
-                        "5" => 5, 
-                        "6" => 6, 
-                        "7" => 7, 
-                        "8" => 8, 
+                    move_data |= (match &coord_cap[2] {
+                        "" =>  0x0,
+                        "1" => 0x1, 
+                        "2" => 0x2, 
+                        "3" => 0x3, 
+                        "4" => 0x4, 
+                        "5" => 0x5, 
+                        "6" => 0x6, 
+                        "7" => 0x7, 
+                        "8" => 0x8, 
                         u => panic!("Unrecongnized rank: {}", u), 
-                    });
+                    } << 4);
                 }
 
-                pieces_moved.push(match piece_str {
-                    "" => Piece::Pawn,
-                    "N" => Piece::Knight,
-                    "B" => Piece::Bishop,
-                    "R" => Piece::Rook,
-                    "Q" => Piece::Queen,
-                    "K" => Piece::King,
+                for coord_cap in RE_COORD.captures_iter(dest_str) {
+                    move_data |= (match &coord_cap[1] {      
+                        "" =>  0x0,
+                        "a" => 0x1, 
+                        "b" => 0x2, 
+                        "c" => 0x3, 
+                        "d" => 0x4, 
+                        "e" => 0x5, 
+                        "f" => 0x6, 
+                        "g" => 0x7, 
+                        "h" => 0x8,  
+                        u => panic!("Unrecongnized file: {}", u), 
+                    } << 8);
+
+                    move_data |= (match &coord_cap[2] {
+                        "" =>  0x0,
+                        "1" => 0x1, 
+                        "2" => 0x2, 
+                        "3" => 0x3, 
+                        "4" => 0x4, 
+                        "5" => 0x5, 
+                        "6" => 0x6, 
+                        "7" => 0x7, 
+                        "8" => 0x8, 
+                        u => panic!("Unrecongnized rank: {}", u), 
+                    } << 12);
+                }
+
+                this_move_metadata |= match piece_str {
+                    "" =>       0b0000000000000001,
+                    "N" =>      0b0000000000000010,
+                    "B" =>      0b0000000000000011,
+                    "R" =>      0b0000000000000100,
+                    "Q" =>      0b0000000000000101,
+                    "K" =>      0b0000000000000110,
                     u => panic!("Unrecongized piece: {}", u)
-                });
+                };
 
-                captured.push(match capture_str {
-                    "" => false,
-                    "x" => true,
+                this_move_metadata |= match capture_str {
+                    "" =>       0b0000000000000000,
+                    "x" =>      0b0000000000001000,
                     u => panic!("Unreconized capture flag: {}", u)
-                });
+                };
 
-                promotions.push(match promotion_piece {
-                    "" => Piece::None,
-                    "N" => Piece::Knight,
-                    "B" => Piece::Bishop,
-                    "R" => Piece::Rook,
-                    "Q" => Piece::Queen,
-                    "K" => Piece::King,
-                    u => panic!("Unrecongized promotion piece: {}", u)
-                });
-
-                nags.push(match nag_str {
-                    "" => NAG::None,
-                    "!" => NAG::Good,
-                    "?" => NAG::Mistake,
-                    "!!" => NAG::Brilliant,
-                    "??" => NAG::Blunder,
-                    "!?" => NAG::Speculative,
-                    "?!" => NAG::Dubious,
-                    _ => NAG::Unrecognized
-                });
-
-                checks.push(match check_str {
-                    "" => Check::None,
-                    "+" => Check::Check,
-                    "#" => Check::Mate,
+                this_move_metadata |= match check_str {
+                    "" =>       0b0000000000000000,
+                    "+" =>      0b0000000000010000,
+                    "#" =>      0b0000000000100000,
                     u => panic!("Unrecongized check flag: {}", u)
-                })
+                };
+
+                this_move_metadata |= match nag_str {
+                    "" =>       0b0000000000000000,
+                    "!" =>      0b0000000001000000,
+                    "?" =>      0b0000000010000000,
+                    "!!" =>     0b0000000011000000,
+                    "??" =>     0b0000000100000000,
+                    "!?" =>     0b0000000101000000,
+                    "?!" =>     0b0000000110000000,
+                    _ => 7
+                };
+
+                this_move_metadata |= match promotion_piece {
+                    "" =>       0b0000000000000000,
+                    "N" =>      0b0000010000000000,
+                    "B" =>      0b0000011000000000,
+                    "R" =>      0b0000100000000000,
+                    "Q" =>      0b0000101000000000,
+                    "K" =>      0b0000110000000000,
+                    u => panic!("Unrecongized promotion piece: {}", u)
+                };
+
+                moves.push(move_data);
+                move_metadata.push(this_move_metadata);
             }
         }
 
-        self.game_args.moved = Some(self.builder.create_vector(&pieces_moved));
-        self.game_args.captured = Some(self.builder.create_vector(&captured));
-        self.game_args.promotions = Some(self.builder.create_vector(&promotions));
-        self.game_args.nags = Some(self.builder.create_vector(&nags));
-        self.game_args.checks = Some(self.builder.create_vector(&checks));
-
-        //self.game_args.from_files = Some(self.builder.create_vector(&from_files));
-        self.game_args.to_files = Some(self.builder.create_vector(&to_files));
-
-        //self.game_args.from_ranks = Some(self.builder.create_vector(&from_ranks));
-        self.game_args.to_ranks = Some(self.builder.create_vector(&to_ranks));
+        self.game_args.moves = Some(self.builder.create_vector(&moves));
+        self.game_args.move_metadata = Some(self.builder.create_vector(&move_metadata));
     }
 
     fn convert_next_game(&mut self) -> std::io::Result<bool> {
