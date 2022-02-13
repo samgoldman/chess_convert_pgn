@@ -12,10 +12,10 @@ use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use regex::Regex;
 
 #[allow(non_snake_case)]
-#[path = "../target/flatbuffers/chess_generated.rs"]
-pub mod chess_flatbuffers;
+#[path = "../target/flatbuffers/mod.rs"]
+mod chess;
 
-pub use chess_flatbuffers::chess::{
+pub use chess::chess::{
     Check, File as BoardFile, Game, GameArgs, GameList, GameListArgs, GameResult, Piece,
     Termination, NAG,
 };
@@ -468,6 +468,8 @@ impl<'a> Converter<'a> {
         self.game_args.clock_hours = Some(self.builder.create_vector(&clk_hours));
         self.game_args.clock_minutes = Some(self.builder.create_vector(&clk_minutes));
         self.game_args.clock_seconds = Some(self.builder.create_vector(&clk_seconds));
+        self.game_args.eval_advantage = Some(self.builder.create_vector(&eval_advantage));
+        self.game_args.eval_mate_in = Some(self.builder.create_vector(&eval_mate_in));
     }
 
     fn convert_next_game(&mut self) -> std::io::Result<bool> {
@@ -558,7 +560,7 @@ fn main() -> io::Result<()> {
 
     let mut converter = Converter {
         reader: file_reader::BufReader::open(input_file)?,
-        builder: flatbuffers::FlatBufferBuilder::new_with_capacity(1024 * 1024),
+        builder: flatbuffers::FlatBufferBuilder::with_capacity(1024 * 1024),
         game_args: GameArgs {
             ..Default::default()
         },
@@ -586,7 +588,7 @@ fn main() -> io::Result<()> {
                     pos += bytes_written;
                 }
 
-                converter.builder = flatbuffers::FlatBufferBuilder::new_with_capacity(1024 * 1024);
+                converter.builder = flatbuffers::FlatBufferBuilder::with_capacity(1024 * 1024);
 
                 i = 0;
                 k += 1;
