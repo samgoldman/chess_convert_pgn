@@ -1,7 +1,7 @@
 use flatc_rust::run;
 
 use mktemp::Temp;
-use std::{fs, fs::File, io, io::prelude::*, io::BufReader, io::Write, path::Path};
+use std::{fs, fs::File, io, io::Write, path::Path};
 
 fn generate_chess_flatbuff() -> Result<(), std::io::Error> {
     run(flatc_rust::Args {
@@ -11,13 +11,9 @@ fn generate_chess_flatbuff() -> Result<(), std::io::Error> {
     })
     .expect("flatc");
 
-    let data = "// @generated\r\n\r\n// Force clippy and checks to ignore this file\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(unused_imports)]\n#![allow(clippy::cognitive_complexity)]\n\n";
+    let data = "// @generated\r\n\r\n// Force clippy and checks to ignore this file\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(unused_imports)]\n#![allow(clippy::cognitive_complexity)]\n#![allow(clippy::pedantic)]\n\n";
 
-    let file_path = Path::new("target/flatbuffers/mod.rs");
-    prepend_file(data.as_bytes(), &file_path)?;
-    let file_path = Path::new("target/flatbuffers/chess/game_generated.rs");
-    prepend_file(data.as_bytes(), &file_path)?;
-    let file_path = Path::new("target/flatbuffers/chess/game_list_generated.rs");
+    let file_path = Path::new("target/flatbuffers/chess_generated.rs");
     prepend_file(data.as_bytes(), &file_path)?;
 
     Ok(())

@@ -2,7 +2,7 @@
 name = "chess_convert_pgn"
 version = "0.1.0"
 authors = ["Sam Goldman <sgoldman216@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,9 +10,8 @@ edition = "2018"
 flatbuffers = "2.0.0"
 lazy_static = "1.4.0"
 regex = "1.4.2"
-clap = "2.33.3"
+clap = "3"
 bzip2 = "0.4.1"
-zstd = "0.9"
 
 [build-dependencies]
 flatc-rust = "0.2.0"

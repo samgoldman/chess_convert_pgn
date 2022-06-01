@@ -1,10 +1,9 @@
 #[macro_use]
 extern crate lazy_static;
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{self};
 
 use bzip2::write::BzEncoder;
 use bzip2::Compression;
@@ -12,13 +11,29 @@ use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use regex::Regex;
 
 #[allow(non_snake_case)]
-#[path = "../target/flatbuffers/mod.rs"]
+#[path = "../target/flatbuffers/chess_generated.rs"]
 mod chess;
 
 pub use chess::chess::{
-    Check, File as BoardFile, Game, GameArgs, GameList, GameListArgs, GameResult, Piece,
-    Termination, NAG,
+    Game, GameArgs, GameList, GameListArgs
 };
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum GameResult {
+    White = 0,
+    Black = 1,
+    Draw = 2,
+    Star = 255,
+}
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum Termination {
+    Normal = 0,
+    TimeForfeit = 1,
+    Abandoned = 2,
+    RulesInfraction = 3,
+    Unterminated = 4,
+}
 
 // https://stackoverflow.com/questions/45882329/read-large-files-line-by-line-in-rust
 mod file_reader {
@@ -83,7 +98,7 @@ impl<'a> Converter<'a> {
                         self.game_args.time_control_main = 0;
                         self.game_args.time_control_increment = 0;
                     } else {
-                        let time_control_parts: Vec<&str> = value.split("+").collect();
+                        let time_control_parts: Vec<&str> = value.split('+').collect();
                         self.game_args.time_control_main =
                             time_control_parts[0].parse::<u16>().unwrap();
                         self.game_args.time_control_increment =
@@ -120,26 +135,26 @@ impl<'a> Converter<'a> {
                         let mut cat_char_vec: Vec<u8> = vec![0];
                         cat_char.encode_utf8(&mut cat_char_vec);
 
-                        self.game_args.eco_category = cat_char_vec[0] as i8;
+                        self.game_args.eco_category = cat_char_vec[0] as u8;
                         self.game_args.eco_subcategory = (&value[1..]).parse::<u8>().unwrap();
                     }
                 }
                 "Result" => {
                     self.game_args.result = match value {
-                        "1-0" => GameResult::White,
-                        "0-1" => GameResult::Black,
-                        "1/2-1/2" => GameResult::Draw,
-                        "*" => GameResult::Star,
+                        "1-0" => GameResult::White as u8,
+                        "0-1" => GameResult::Black as u8,
+                        "1/2-1/2" => GameResult::Draw as u8,
+                        "*" => GameResult::Star as u8,
                         u => panic!("Unknown result: {}", u),
                     }
                 }
                 "Termination" => {
                     self.game_args.termination = match value {
-                        "Normal" => Termination::Normal,
-                        "Time forfeit" => Termination::TimeForfeit,
-                        "Abandoned" => Termination::Abandoned,
-                        "Rules infraction" => Termination::RulesInfraction,
-                        "Unterminated" => Termination::Unterminated,
+                        "Normal" => Termination::Normal as u8,
+                        "Time forfeit" => Termination::TimeForfeit as u8,
+                        "Abandoned" => Termination::Abandoned as u8,
+                        "Rules infraction" => Termination::RulesInfraction as u8,
+                        "Unterminated" => Termination::Unterminated as u8,
                         u => panic!("Unknown termination: {}", u),
                     }
                 }
@@ -171,7 +186,7 @@ impl<'a> Converter<'a> {
             static ref RE_CASTLING: Regex = Regex::new(r#"^(O-O-?O?)([+#]?)([?!]{0,2})$"#).unwrap();
         }
 
-        let tokens = line.split(" ");
+        let tokens = line.split(' ');
 
         let mut moves: Vec<u16> = vec![];
         let mut move_metadata: Vec<u16> = vec![];
@@ -192,7 +207,7 @@ impl<'a> Converter<'a> {
                 in_comment = false;
             }
 
-            if false == in_comment {
+            if !in_comment {
                 for cap in RE_CASTLING.captures_iter(token) {
                     let white = moves.len() % 2 == 0;
                     let kingside = cap[1].len() == 3;
@@ -213,7 +228,7 @@ impl<'a> Converter<'a> {
                     let mut this_move_metadata = 0;
 
                     for coord_cap in RE_COORD.captures_iter(&disambiguation_str) {
-                        move_data |= (match &coord_cap[1] {
+                        move_data |= match &coord_cap[1] {
                             "" => 0x0,
                             "a" => 0x1,
                             "b" => 0x2,
@@ -224,7 +239,7 @@ impl<'a> Converter<'a> {
                             "g" => 0x7,
                             "h" => 0x8,
                             u => panic!("Unrecongnized file: {}", u),
-                        } << 0);
+                        };
 
                         move_data |= (match &coord_cap[2] {
                             "" => 0x0,
@@ -333,7 +348,7 @@ impl<'a> Converter<'a> {
                     let mut this_move_metadata = 0;
 
                     for coord_cap in RE_COORD.captures_iter(disambiguation_str) {
-                        move_data |= (match &coord_cap[1] {
+                        move_data |= match &coord_cap[1] {
                             "" => 0x0,
                             "a" => 0x1,
                             "b" => 0x2,
@@ -344,7 +359,7 @@ impl<'a> Converter<'a> {
                             "g" => 0x7,
                             "h" => 0x8,
                             u => panic!("Unrecongnized file: {}", u),
-                        } << 0);
+                        };
 
                         move_data |= (match &coord_cap[2] {
                             "" => 0x0,
@@ -442,13 +457,12 @@ impl<'a> Converter<'a> {
 
                     let eval = &cap[1];
 
-                    for cap in RE_EVAL_MATE.captures_iter(eval) {
+                    if let Some(cap) = RE_EVAL_MATE.captures(eval) {
                         eval_advantage.push(0.0);
                         eval_mate_in.push(cap[1].parse::<i16>().unwrap());
-                        break;
                     }
 
-                    for cap in RE_EVAL_ADVANTAGE.captures_iter(eval) {
+                    if let Some(cap) = RE_EVAL_ADVANTAGE.captures(eval) {
                         eval_mate_in.push(0);
                         eval_advantage.push(cap[1].parse::<f32>().unwrap());
                         break;
@@ -486,10 +500,10 @@ impl<'a> Converter<'a> {
                 None => return Ok(false),
                 Some(line) => {
                     let trimmed = line?.trim();
-                    if trimmed.len() > 1 && trimmed.chars().nth(0).unwrap() == '[' {
+                    if trimmed.len() > 1 && trimmed.starts_with('[') {
                         self.read_header(trimmed);
                     } else {
-                        assert!(trimmed == "");
+                        assert!(trimmed.is_empty());
                         break;
                     }
                 }
@@ -499,7 +513,11 @@ impl<'a> Converter<'a> {
         let game_text = self.reader.read_line(&mut buffer).unwrap()?;
         self.parse_game_text(game_text.trim());
 
-        let line = self.reader.read_line(&mut buffer).unwrap()?;
+        let line = match self.reader.read_line(&mut buffer) {
+            Some(v) => v?,
+            None => return Ok(false),
+        };
+
         assert!(line.trim() == "");
 
         let game = Game::create(&mut self.builder, &self.game_args);
@@ -524,29 +542,29 @@ impl<'a> Converter<'a> {
     }
 }
 
-fn main() -> io::Result<()> {
-    let matches = App::new("PGN to Flat Buffer")
+fn main() -> std::io::Result<()> {
+    let matches = Command::new("PGN to Flat Buffer")
         .version("0.1.0")
         .author("Sam Goldman")
         .about("Convert Lichess PGN files to flat buffers")
         .arg(
-            Arg::with_name("input_file")
-                .short("i")
+            Arg::new("input_file")
+                .short('i')
                 .long("input_file")
                 .takes_value(true)
                 .help("The PGN to parse")
                 .required(true),
         )
         .arg(
-            Arg::with_name("output_prefix")
-                .short("o")
+            Arg::new("output_prefix")
+                .short('o')
                 .long("output_prefix")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("max")
-                .short("m")
+            Arg::new("max")
+                .short('m')
                 .long("max")
                 .takes_value(true)
                 .default_value("10000")
@@ -571,7 +589,7 @@ fn main() -> io::Result<()> {
     let mut k = 0;
     loop {
         let res = converter.convert_next_game()?;
-        if false == res {
+        if !res {
             break;
         } else {
             i += 1;
