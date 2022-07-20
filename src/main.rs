@@ -238,7 +238,7 @@ impl<'a> Converter<'a> {
                             "f" => 0x6,
                             "g" => 0x7,
                             "h" => 0x8,
-                            u => panic!("Unrecongnized file: {}", u),
+                            u => panic!("Unrecognized file: {}", u),
                         };
 
                         move_data |= (match &coord_cap[2] {
@@ -251,7 +251,7 @@ impl<'a> Converter<'a> {
                             "6" => 0x6,
                             "7" => 0x7,
                             "8" => 0x8,
-                            u => panic!("Unrecongnized rank: {}", u),
+                            u => panic!("Unrecognized rank: {}", u),
                         } << 4);
                     }
 
@@ -266,7 +266,7 @@ impl<'a> Converter<'a> {
                             "f" => 0x6,
                             "g" => 0x7,
                             "h" => 0x8,
-                            u => panic!("Unrecongnized file: {}", u),
+                            u => panic!("Unrecognized file: {}", u),
                         } << 8);
 
                         move_data |= (match &coord_cap[2] {
@@ -279,7 +279,7 @@ impl<'a> Converter<'a> {
                             "6" => 0x6,
                             "7" => 0x7,
                             "8" => 0x8,
-                            u => panic!("Unrecongnized rank: {}", u),
+                            u => panic!("Unrecognized rank: {}", u),
                         } << 12);
                     }
 
@@ -290,20 +290,20 @@ impl<'a> Converter<'a> {
                         "R" => 0x0004,
                         "Q" => 0x0005,
                         "K" => 0x0006,
-                        u => panic!("Unrecongized piece: {}", u),
+                        u => panic!("Unrecognized piece: {}", u),
                     };
 
                     this_move_metadata |= match capture_str {
                         "" => 0x0000,
                         "x" => 0x0008,
-                        u => panic!("Unreconized capture flag: {}", u),
+                        u => panic!("Unrecognized capture flag: {}", u),
                     };
 
                     this_move_metadata |= match check_str {
                         "" => 0x0000,
                         "+" => 0x0010,
                         "#" => 0x0020,
-                        u => panic!("Unrecongized check flag: {}", u),
+                        u => panic!("Unrecognized check flag: {}", u),
                     };
 
                     this_move_metadata |= match nag_str {
@@ -325,7 +325,7 @@ impl<'a> Converter<'a> {
                         "R" => 0x0800,
                         "Q" => 0x0A00,
                         "K" => 0x0C00,
-                        u => panic!("Unrecongized promotion piece: {}", u),
+                        u => panic!("Unrecognized promotion piece: {}", u),
                     };
 
                     moves.push(move_data);
@@ -358,7 +358,7 @@ impl<'a> Converter<'a> {
                             "f" => 0x6,
                             "g" => 0x7,
                             "h" => 0x8,
-                            u => panic!("Unrecongnized file: {}", u),
+                            u => panic!("Unrecognized file: {}", u),
                         };
 
                         move_data |= (match &coord_cap[2] {
@@ -371,7 +371,7 @@ impl<'a> Converter<'a> {
                             "6" => 0x6,
                             "7" => 0x7,
                             "8" => 0x8,
-                            u => panic!("Unrecongnized rank: {}", u),
+                            u => panic!("Unrecognized rank: {}", u),
                         } << 4);
                     }
 
@@ -386,7 +386,7 @@ impl<'a> Converter<'a> {
                             "f" => 0x6,
                             "g" => 0x7,
                             "h" => 0x8,
-                            u => panic!("Unrecongnized file: {}", u),
+                            u => panic!("Unrecognized file: {}", u),
                         } << 8);
 
                         move_data |= (match &coord_cap[2] {
@@ -399,7 +399,7 @@ impl<'a> Converter<'a> {
                             "6" => 0x6,
                             "7" => 0x7,
                             "8" => 0x8,
-                            u => panic!("Unrecongnized rank: {}", u),
+                            u => panic!("Unrecognized rank: {}", u),
                         } << 12);
                     }
 
@@ -410,20 +410,20 @@ impl<'a> Converter<'a> {
                         "R" => 0x0004,
                         "Q" => 0x0005,
                         "K" => 0x0006,
-                        u => panic!("Unrecongized piece: {}", u),
+                        u => panic!("Unrecognized piece: {}", u),
                     };
 
                     this_move_metadata |= match capture_str {
                         "" => 0x0000,
                         "x" => 0x0008,
-                        u => panic!("Unreconized capture flag: {}", u),
+                        u => panic!("Unrecognized capture flag: {}", u),
                     };
 
                     this_move_metadata |= match check_str {
                         "" => 0x0000,
                         "+" => 0x0010,
                         "#" => 0x0020,
-                        u => panic!("Unrecongized check flag: {}", u),
+                        u => panic!("Unrecognized check flag: {}", u),
                     };
 
                     this_move_metadata |= match nag_str {
@@ -445,7 +445,7 @@ impl<'a> Converter<'a> {
                         "R" => 0x0800,
                         "Q" => 0x0A00,
                         "K" => 0x0C00,
-                        u => panic!("Unrecongized promotion piece: {}", u),
+                        u => panic!("Unrecognized promotion piece: {}", u),
                     };
 
                     moves.push(move_data);
